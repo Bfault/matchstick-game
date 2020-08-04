@@ -1,5 +1,5 @@
-import numpy as np
 from math import ceil
+from errorexception import *
 
 class Game:
     '''
@@ -22,12 +22,18 @@ class Game:
     _get_nb_colomn = lambda self : int(1 + 2 * (self.nb_line - 1))
     
     def _get_stick_map(self):
+        '''
+            remembers how many sticks are available on each line
+        '''
         output = {}
         for i in range(self.nb_line):
             output[i + 1] = 1 + 2 * i
         return output
     
     def _draw_board(self):
+        '''
+            draw map game on tab
+        '''
         output = []
         for y in range(self.nb_line + 2):
             part = []
@@ -42,67 +48,148 @@ class Game:
         return output
 
     def _is_that_stick(self, x, y, x_max, y_max):
+        '''
+            check if position given is on a stick or not
+        '''
         if x > ceil(x_max / 2) - y and x < ceil(x_max / 2) + y:
             return True
         return False
 
     def display(self):
+        '''
+            display game board
+        '''
         for y in range(len(self.board)):
             for x in range(len(self.board[0])):
                 print(self.board[y][x], end="")
             print()
         print()
 
-class P0(Game):
+class P0():
     '''
+        Super player cause both players use the same methods
     '''
-    def __init__(self, nb_lines, hand_size):
-        super().__init__(nb_lines, hand_size)
-    
+    def __init__(self, game, player, enemy):
+        self.player_name = player
+        self.enemy_name = enemy
+
     def turn(self):
-        print("Your turn:")
-        line = self._get_line()
-        matches = self._get_matche(line)
+        '''
+            Just a turn
+        '''
+        print("{player} turn:".format(player=self.player_name))
+        line, matches = self._get_input()
         self._player_process(line, matches)
-        self.display()
+
+        if game.nb_stick == 0:
+            print("\n{enemy} Win :) and {player} Loose :(".format(enemy=self.enemy_name, player=self.player_name))
+        else:
+            game.display()
+
+    def _get_input(self):
+        '''
+            Get input with errors management
+        '''
+        line = -1
+        matches = -1
+        while matches == -1:
+            line = self._get_line()
+            if line == -1:
+                continue
+            matches = self._get_matche(line)
+        return line, matches
 
     def _get_line(self):
+        '''
+            Get line input with errors management
+        '''
         try:
             line = int(input("Line: "))
-            if line <= 0 or line > self.nb_line or self.stick_map[line] == 0:
-                raise Exception
-        except:
-            print("Error: Invalid input (positive number expected)")
-            line = self._get_line()
-        return line
-    
+            
+            if line <= 0 or line > game.nb_line:
+                raise OutRangeException
+            elif game.stick_map[line] == 0:
+                raise NoStickOnLineException(line)
+
+        except OutRangeException as ore:
+            print(ore)
+
+        except NoStickOnLineException as nsole:
+            print(nsole)
+        
+        except Exception:
+            print("Error: invalid input (positive number expected)")
+
+        else:
+            return line
+        return -1
+
     def _get_matche(self, line):
+        '''
+            Get matche input with errors management
+        '''
         try:
             matche = int(input("Matches: "))
-            if matche <= 0 or self.stick_map[line] < matche or matche > self.hand_size:
+
+            if matche <= 0:
                 raise Exception
-        except:
+            elif matche > game.hand_size:
+                raise OverMatcheException(game.hand_size)
+            elif game.stick_map[line] < matche:
+                raise NotEnoughMatchException(game.stick_map[line], line)
+        
+        except OverMatcheException as ome:
+            print(ome)
+        
+        except NotEnoughMatchException as neme:
+            print(neme)
+        
+        except Exception:
             print("Error: Invalid input (positive number expected)")
-            matche = self._get_matche(line)
-        return matche
+        
+        else:
+            return matche
+        return -1
 
     def _player_process(self, line, matches):
-        #self.board[i][line]
-        self.nb_stick -= matches
+        '''
+            Remove a stick
+        '''
+        xtrm = 0
+        prec = ""
+        i = 1
+        while xtrm == 0:
+            curr = game.board[line][i]
+            if (curr == " " or curr == "*") and prec == "|":
+                xtrm = i - 1
+            prec = curr
+            i += 1
+        
+        for i in range(matches):
+            game.board[line][xtrm] = " "
+            xtrm -= 1
+
+        game.nb_stick -= matches
+        game.stick_map[line] -= matches
 
 class P1(P0):
     '''
+        Player 1 (MyFavorite)
     '''
-    def __init__(self, nb_lines, hand_size, human=False):
-        super().__init__(nb_lines, hand_size)
+    def __init__(self, game, human=False):
+        super().__init__(game, "P1", "P2")
     
 class P2(P0):
     '''
+        Player 2
     '''
-    def __init__(self, nb_lines, hand_size, human=False):
-        super().__init__(nb_lines, hand_size)
+    def __init__(self, game, human=False):
+        super().__init__(game, "P2", "P1")
 
 def get_input():
+    '''
+        Get first input (how many lines i want and how big is my hand) and errors management
+    '''
     nb_lines = 0
     hand_size = 0
 
@@ -126,11 +213,19 @@ def get_input():
 
 nb_lines, hand_size = get_input()
 
-p1 = P1(nb_lines, hand_size, human=True)
-p2 = P2(nb_lines, hand_size, human=True)
+game = Game(nb_lines, hand_size)
 
-p1.display()
-while (p1.nb_stick > 0):
-    p1.turn()
-    p2.turn()
+p1 = P1(game, human=True)
+p2 = P2(game, human=True)
+
+player = [p1, p2]
+
+#linear function to swap 0 and 1
+f = lambda x : -x + 1
+x = 1
+
+game.display()
+while (game.nb_stick > 0):
+    x = f(x)
+    player[x].turn()
     
